@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "critter-catcher"
+version = "0.1.0"
+description = "Export video from Unifi Protect when critters trigger the motion detector."
+authors = ["Greg Sarjeant <gsarjeant@gmail.com>"]
+readme = "README.md"
+packages = [{include = "critter_catcher"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyunifiprotect = "^4.6.1"
+aiorun = "^2022.11.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.12.0"
+pytest = "^7.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

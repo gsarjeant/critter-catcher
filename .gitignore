@@ -1,0 +1,4 @@
+.direnv
+.envrc
+.pytest_cache
+.vscode
