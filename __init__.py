@@ -8,7 +8,7 @@ from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
 
 cameras = {}
-ignore_cameras = []
+ignore_cameras = ["Front Door"]
 logging.basicConfig(encoding="utf-8", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -73,9 +73,8 @@ async def initialize_protect_client():
 
     protect = ProtectApiClient(host, port, username, password, verify_ssl=verify_ssl)
 
-    await protect.update()  # this will initialize the protect .bootstrap and open a Websocket connection for updates
+    await protect.update()
 
-    # get names of cameras
     logger.info("Protect client initialized.")
     logger.debug("Listing cameras ...")
     for camera in protect.bootstrap.cameras.values():
