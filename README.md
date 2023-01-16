@@ -9,4 +9,4 @@ Owes a large debt to a couple projects:
 
 In fact, I could have just used pyunifiprotect for this purpose, but I wanted to write my own thing because I haven't done any asynchronous python before and this is a great chance to dig into that. But if you are looking for a way to back up your unifi protect video you should use unifi-protect-backup.
 
-This initial commit is just a rudimentary script that I used to try out different approaches to handle this with asyncio. It would be much more elegant as a couple of classes. I also need to containerize it and run it as a serivce and all that good stuff, but this is in decent shape for a first commit.
+This initial commit is just a rudimentary script that I used to try out different approaches to handle this with asyncio. It would be much cleaner as a couple of classes. I also need to containerize it and run it as a serivce and all that good stuff, but this is in decent shape for a first commit.
