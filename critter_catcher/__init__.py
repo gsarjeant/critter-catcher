@@ -1,13 +1,11 @@
 import asyncio
 import logging
 import os
-from typing import AsyncIterator, Callable, Tuple
-from pyunifiprotect import ProtectApiClient
-from pyunifiprotect.data import WSAction, WSSubscriptionMessage
-from pyunifiprotect.data.nvr import Event
-from pyunifiprotect.data.types import EventType
 from critter_catcher.unifi_protect_client_manager import UnifiProtectClientManager
-from critter_catcher.unifi_protect_event_processor import UnifiProtectEventProcessor
+from critter_catcher.unifi_protect_event_processor import (
+    EventCamera,
+    UnifiProtectEventProcessor,
+)
 
 logging.basicConfig(
     encoding="utf-8",
@@ -45,17 +43,21 @@ async def main() -> None:
         )
         protect_api_client = await protect_client_manager.initialize()
 
-        # Query the API client to convert the list of camera names to ignore into a list of IDs
-        # (the ids are passed in events, so that's what we need to compare)
-        ignore_camera_ids = [
-            id
+        # Query the API client and inspect ignore_camera_names
+        # to generate a list of EventCameras to pass to the event processor
+        event_cameras = [
+            EventCamera(id=id, name=name, ignore=(name in ignore_camera_names))
             for id, name in protect_client_manager.cameras.items()
-            if name in ignore_camera_names
         ]
+        #        ignore_camera_ids = [
+        #            id
+        #            for id, name in protect_client_manager.cameras.items()
+        #            if name in ignore_camera_names
+        #        ]
 
         # Initialize the event processor
         protect_event_processor = UnifiProtectEventProcessor(
-            protect_api_client, ignore_camera_ids, download_dir
+            protect_api_client, event_cameras, download_dir
         )
 
         # subscribe to the Unifi Protect websocket, and call the event processor when messages are received.
