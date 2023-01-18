@@ -41,7 +41,7 @@ async def main() -> None:
             password=password,
             verify_ssl=verify_ssl,
         )
-        protect_api_client = await protect_client_manager.initialize()
+        await protect_client_manager.initialize()
 
         # Query the API client and inspect ignore_camera_names
         # to generate a list of EventCameras to pass to the event processor
@@ -49,15 +49,10 @@ async def main() -> None:
             EventCamera(id=id, name=name, ignore=(name in ignore_camera_names))
             for id, name in protect_client_manager.cameras.items()
         ]
-        #        ignore_camera_ids = [
-        #            id
-        #            for id, name in protect_client_manager.cameras.items()
-        #            if name in ignore_camera_names
-        #        ]
 
         # Initialize the event processor
         protect_event_processor = UnifiProtectEventProcessor(
-            protect_api_client, event_cameras, download_dir
+            event_cameras, download_dir
         )
 
         # subscribe to the Unifi Protect websocket, and call the event processor when messages are received.

@@ -30,11 +30,10 @@ class UnifiProtectClientManager(object):
         self._callback = None
         self._unsub = None
 
-    async def initialize(self) -> ProtectApiClient:
+    async def initialize(self) -> None:
         self._bootstrap = await self._protect_api_client.update()
         logger.info("Unifi Protect API client initialized.")
         self._cameras = self._get_cameras()
-        return self._protect_api_client
 
     def _get_cameras(self) -> Dict[str, str]:
         logger.info("Finding cameras ...")
@@ -44,6 +43,10 @@ class UnifiProtectClientManager(object):
             logger.info(f"    Camera name: {camera.name} - id: {camera.id}")
 
         return cameras
+
+    @property
+    def protect_api_client(self):
+        return self._protect_api_client
 
     @property
     def cameras(self):

@@ -20,11 +20,9 @@ class EventCamera:
 class UnifiProtectEventProcessor:
     def __init__(
         self,
-        protect_api_client: ProtectApiClient,
         event_cameras: List[EventCamera],
         download_dir: str,
     ) -> None:
-        self._protect_api_client = protect_api_client
         self._event_queue = asyncio.Queue()
         self._event_cameras = event_cameras
         self._download_dir = download_dir
