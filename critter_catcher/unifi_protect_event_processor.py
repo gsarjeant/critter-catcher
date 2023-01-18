@@ -63,12 +63,12 @@ class UnifiProtectEventProcessor:
             self._event_queue.put_nowait(obj)
             logger.info(f"Event: {event_id} - placed in queue.")
 
-    async def _get_events(self) -> AsyncIterator:
-        while True:
-            yield await self._event_queue.get()
-
     async def capture_event_video(self) -> None:
-        async for event in self._get_events():
+        async def _get_events() -> AsyncIterator:
+            while True:
+                yield await self._event_queue.get()
+
+        async for event in _get_events():
             (event_id, camera_id) = event.id.split("-")
             event_camera = self._get_event_camera(camera_id)
 
