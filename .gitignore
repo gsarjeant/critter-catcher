@@ -1,4 +1,11 @@
+# environment configuration
 .direnv
 .envrc
-.pytest_cache
+
+# IDE configuration
 .vscode
+
+# python
+*.pyc
+.pytest_cache
+__pycache__
