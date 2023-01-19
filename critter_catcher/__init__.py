@@ -28,7 +28,7 @@ async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> 
         task.cancel()
 
 
-async def _shutdown(protect: ProtectApiClient, unsub: Callable):
+async def _shutdown(protect: ProtectApiClient, unsub: Callable[[], None]):
     # Unsubscribe from the Unifi Protect websocket
     logger.info("Unsubscribing from websocket")
     unsub()

@@ -106,7 +106,7 @@ def get_event_callback_and_processor(
 
 
 async def monitor_websocket_connection(
-    protect: ProtectApiClient, unsub: Callable, callback: Callable
+    protect: ProtectApiClient, unsub: Callable[[], None], callback: Callable[[], None]
 ):
     while True:
         await asyncio.sleep(60)
