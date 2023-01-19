@@ -122,21 +122,6 @@ yarl = ">=1.0,<2.0"
 speedups = ["Brotli", "aiodns", "cchardet"]
 
 [[package]]
-name = "aiorun"
-version = "2022.11.1"
-description = "Boilerplate for asyncio applications"
-category = "main"
-optional = false
-python-versions = ">=3.5"
-files = [
-    {file = "aiorun-2022.11.1-py3-none-any.whl", hash = "sha256:8fbfc2aab258021deef2b1f38284c652af9fd3710e94c7b0e736a55d161fa0cb"},
-    {file = "aiorun-2022.11.1.tar.gz", hash = "sha256:d820cebffdea82f9c1750cc396f3a58e4c0d277a2c51f11e86ed6ab7736dce59"},
-]
-
-[package.extras]
-dev = ["pytest", "pytest-cov"]
-
-[[package]]
 name = "aioshutil"
 version = "1.2"
 description = "Asynchronous shutil module."
@@ -1188,4 +1173,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "9c7d5b66a919aef3186a64674a2cfd97bb63f315e83696e4b7d7b3c09aa9cb9a"
+content-hash = "114d9d089702c4c13ddd9a7cd96ae9bc20cac4ce1c31955f3d1f8270e72b12a4"

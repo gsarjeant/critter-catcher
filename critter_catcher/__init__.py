@@ -41,15 +41,11 @@ async def _stop(protect: ProtectApiClient, unsub: Callable[[], None]) -> None:
         logger.warning("Client was destroyed before closing session.")
 
 
-async def _start() -> None:
-    host = os.environ["UDMP_HOST"]
-    port = os.environ["UDMP_PORT"]
-    username = os.environ["UDMP_USERNAME"]
-    password = os.environ["UDMP_PASSWORD"]
-    verify_ssl = os.environ["UDMP_VERIFY_SSL"] == "true"
-    download_dir = os.environ["DOWNLOAD_DIR"]
-    ignore_camera_names = os.environ.get("IGNORE_CAMERA_NAMES")
+async def _start(
+    username, password, host, port, verify_ssl, download_dir, ignore_camera_names
+) -> None:
 
+    logger.debug(f"Verify SSL: {verify_ssl}")
     # convert the comma-delimited list of ignored camera names to a list
     # (empty list if no cameras are ignored)
     ignore_camera_names = ignore_camera_names.split(",") if ignore_camera_names else []
@@ -90,9 +86,28 @@ async def _start() -> None:
     await _stop(protect, unsub)
 
 
-def main() -> None:
-    asyncio.run(_start())
+def main(
+    username, password, host, port, verify_ssl, download_dir, ignore_camera_names
+) -> None:
+    asyncio.run(
+        _start(
+            username,
+            password,
+            host,
+            port,
+            verify_ssl,
+            download_dir,
+            ignore_camera_names,
+        )
+    )
 
 
 if __name__ == "__main__":
-    main()
+    username = os.environ["UFP_USERNAME"]
+    password = os.environ["UFP_PASSWORD"]
+    host = os.environ["UFP_ADDRESS"]
+    port = os.environ["UFP_PORT"]
+    verify_ssl = os.environ.get("UFP_SSL_VERIFY", False)
+    download_dir = os.environ["CC_DOWNLOAD_DIR"]
+    ignore_camera_names = os.environ.get("CC_IGNORE_CAMERA_NAMES")
+    main(username, password, host, port, verify_ssl, download_dir, ignore_camera_names)
