@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
@@ -16,26 +17,23 @@ class EventCamera:
     ignore: bool
 
 
-class UnifiProtectEventProcessor:
-    def __init__(
-        self,
-        event_cameras: List[EventCamera],
-        download_dir: str,
-    ) -> None:
-        self._event_queue = asyncio.Queue()
-        self._event_cameras = event_cameras
-        self._download_dir = download_dir
+def _make_camera_list(protect: ProtectApiClient, ignore_camera_names: List[str]):
+    return [
+        EventCamera(
+            id=camera.id, name=camera.name, ignore=(camera.name in ignore_camera_names)
+        )
+        for camera in protect.bootstrap.cameras.values()
+    ]
 
-        logger.debug(f"cameras: {str([c for c in event_cameras])}")
 
-    def _get_event_camera(self, camera_id):
-        # TODO: This is making two prety big assumptions:
-        #       1. I didn't somehow end up with more than one EventCamera with a given ID.
-        #       2. The requested camera_id actually exists.
-        #       Put in a check to ensure that those are true.
-        return next(filter(lambda ec: ec.id == camera_id, self._event_cameras))
+def get_event_callback_and_processor(
+    protect: ProtectApiClient, ignore_camera_names: List[str], download_dir: str
+):
+    event_queue = asyncio.Queue()
+    cameras = _make_camera_list(protect, ignore_camera_names)
+    logger.debug(f"cameras: {str([c for c in cameras])}")
 
-    def process_event(self, msg: WSSubscriptionMessage) -> None:
+    def enqueue_event(msg: WSSubscriptionMessage) -> None:
         obj = msg.new_obj
 
         if isinstance(obj, Event):
@@ -44,7 +42,7 @@ class UnifiProtectEventProcessor:
                 return
 
             (event_id, camera_id) = obj.id.split("-")
-            event_camera = self._get_event_camera(camera_id)
+            event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
             if event_camera.ignore:
                 logger.debug(f"Event from ignored camera: {event_camera.name}")
@@ -59,17 +57,15 @@ class UnifiProtectEventProcessor:
             if obj.end is None:
                 return
 
-            self._event_queue.put_nowait(obj)
-            logger.debug(f"Event: {event_id} - placed in queue.")
+            event_queue.put_nowait(obj)
+            logger.info(f"Event: {event_id} - enqueued.")
 
-    async def capture_event_video(self) -> None:
-        async def _get_events() -> AsyncIterator:
-            while True:
-                yield await self._event_queue.get()
+    async def process_events() -> None:
+        while True:
+            event = await event_queue.get()
 
-        async for event in _get_events():
             (event_id, camera_id) = event.id.split("-")
-            event_camera = self._get_event_camera(camera_id)
+            event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
             logger.debug(f"Event: {event_id} - Event complete")
             logger.debug(
@@ -100,8 +96,10 @@ class UnifiProtectEventProcessor:
             logger.debug(f"Event: {event_id} - Downloading video...")
 
             event_filename = f"{event_camera.name}-{event_id}-{event.type.value}.mp4"
-            output_file = f"{self._download_dir}/{event_filename}"
+            output_file = f"{download_dir}/{event_filename}"
             await event.get_video(output_file=output_file)
 
             logger.info(f"Event: {event_id} - Video saved to {output_file}")
-            logger.debug(f"Event: {event_id} - Event processing complete")
+            logger.info(f"Event: {event_id} - Processed.")
+
+    return enqueue_event, process_events
