@@ -2,9 +2,11 @@ import asyncio
 import logging
 import os
 import signal
-from critter_catcher.unifi_protect_client_manager import UnifiProtectClientManager
+from pyunifiprotect import ProtectApiClient
+from typing import Callable, List
 from critter_catcher.unifi_protect_event_processor import (
     get_event_callback_and_processor,
+    monitor_websocket_connection,
 )
 
 
@@ -17,13 +19,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def shutdown(signal, cancel_tasks) -> None:
+async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> None:
     logger.info(f"Received signal {signal.name}")
-    tasks = [t for t in cancel_tasks if t is not asyncio.current_task()]
+    tasks = [t for t in tasks_to_cancel if t is not asyncio.current_task()]
 
     logger.debug(f"Cancelling {len(tasks)} pending tasks")
     for task in tasks:
         task.cancel()
+
+
+async def _shutdown(protect: ProtectApiClient, unsub: Callable):
+    # Unsubscribe from the Unifi Protect websocket
+    logger.info("Unsubscribing from websocket")
+    unsub()
+
+    # Close Unifi Protect session
+    if protect is not None:
+        logger.info("Closing session")
+        await protect.close_session()
+    else:
+        logger.error("Client has been destroyed")
 
 
 async def main() -> None:
@@ -39,47 +54,38 @@ async def main() -> None:
     # (empty list if no cameras are ignored)
     ignore_camera_names = ignore_camera_names.split(",") if ignore_camera_names else []
 
-    # Initialize the Unifi Protect API Client.
-    protect_client_manager = UnifiProtectClientManager(
-        host=host,
-        port=port,
-        username=username,
-        password=password,
-        verify_ssl=verify_ssl,
-    )
-    await protect_client_manager.initialize()
+    protect = ProtectApiClient(host, port, username, password, verify_ssl=verify_ssl)
+    await protect.update()
 
     # subscribe to the Unifi Protect websocket, and call the event processor when messages are received.
     enqueue_event, process_events = get_event_callback_and_processor(
-        protect_client_manager.protect_api_client, ignore_camera_names, download_dir
+        protect, ignore_camera_names, download_dir
     )
-    protect_client_manager.subscribe(enqueue_event)
+    unsub = protect.subscribe_websocket(enqueue_event)
 
     # start async tasks and run until all tasks end (in this case, are cancelled)
     # asyncio.TaskGroup requires python 3.11+
     async with asyncio.TaskGroup() as tg:
-        monitor_task = tg.create_task(
-            protect_client_manager.monitor_websocket_connection()
+        tasks = []
+        tasks.append(
+            tg.create_task(monitor_websocket_connection(protect, unsub, enqueue_event))
         )
-        download_task = tg.create_task(process_events())
+        tasks.append(tg.create_task(process_events()))
 
         # Set up signal handlers
-        # NOTE: I'm explicitly passing only those tasks that I added in the task group,
-        #       so that we cancel only those tasks when a signal is caught.
-        #
+        # NOTE: I'm explicitly cancelling only those tasks that I added in the task group.
         #       The pyunifiprotect library creates its own tasks and expects to be able to handle them itself on shutdown.
         loop = asyncio.get_event_loop()
-        tasks = [monitor_task, download_task]
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
 
         for s in signals:
             loop.add_signal_handler(
                 s,
-                lambda s=s: tg.create_task(shutdown(s, tasks)),
+                lambda s=s: tg.create_task(_cancel_tasks(s, tasks)),
             )
 
     logger.info("All managed tasks cancelled. Shutting down.")
-    await protect_client_manager.shutdown()
+    await _shutdown(protect, unsub)
 
 
 if __name__ == "__main__":

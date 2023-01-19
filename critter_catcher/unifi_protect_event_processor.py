@@ -5,7 +5,7 @@ from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
-from typing import AsyncIterator, List
+from typing import Callable, List
 
 logger = logging.getLogger(__name__)
 
@@ -103,3 +103,41 @@ def get_event_callback_and_processor(
             logger.info(f"Event: {event_id} - Processed.")
 
     return enqueue_event, process_events
+
+
+async def monitor_websocket_connection(
+    protect: ProtectApiClient, unsub: Callable, callback: Callable
+):
+    while True:
+        await asyncio.sleep(60)
+
+        logger.debug("Checking connection to websocket")
+        if protect.check_ws():
+            logger.debug("Connected to Unifi Protect")
+        else:
+            logger.warning("Lost connection to Unifi Protect. Cleaning up connection.")
+
+            unsub()
+            await protect.close_session()
+
+            while True:
+                logger.warning("Attempting to reconnect to Unifi Protect.")
+
+                try:
+                    logger.warning("Reinitializing protect client")
+                    await protect.update(force=True)
+                    if protect.check_ws():
+                        logger.warning("Resubscribing to websocket")
+                        unsub = protect.subscribe_websocket(callback)
+                        break
+                    else:
+                        logger.warning("Unable to reconnect to Unifi Protect.")
+                except Exception as e:
+                    logger.warning(
+                        "Unexpected exception trying to reconnnect to Unifi Protect"
+                    )
+                    logger.exception(e)
+
+                await asyncio.sleep(10)
+
+            logger.warning("Reconnected to Unifi Protect.")
