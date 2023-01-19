@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
@@ -27,7 +26,7 @@ class UnifiProtectEventProcessor:
         self._event_cameras = event_cameras
         self._download_dir = download_dir
 
-        logger.info(f"cameras: {str([c for c in event_cameras])}")
+        logger.debug(f"cameras: {str([c for c in event_cameras])}")
 
     def _get_event_camera(self, camera_id):
         # TODO: This is making two prety big assumptions:
@@ -41,19 +40,19 @@ class UnifiProtectEventProcessor:
 
         if isinstance(obj, Event):
             if obj.type not in [EventType.MOTION, EventType.SMART_DETECT]:
-                logger.info(f"Unhandled event type: {obj.type}")
+                logger.debug(f"Unhandled event type: {obj.type}")
                 return
 
             (event_id, camera_id) = obj.id.split("-")
             event_camera = self._get_event_camera(camera_id)
 
             if event_camera.ignore:
-                logger.info(f"Event from ignored camera: {event_camera.name}")
+                logger.debug(f"Event from ignored camera: {event_camera.name}")
                 return
 
             if msg.action == WSAction.ADD:
-                logger.info(f"Event: {event_id} - Started (type: {obj.type})")
-                logger.info(f"Event: {event_id} - Camera: {event_camera.name}")
+                logger.debug(f"Event: {event_id} - Started (type: {obj.type})")
+                logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
                 return
             if msg.action != WSAction.UPDATE:
                 return
@@ -61,7 +60,7 @@ class UnifiProtectEventProcessor:
                 return
 
             self._event_queue.put_nowait(obj)
-            logger.info(f"Event: {event_id} - placed in queue.")
+            logger.debug(f"Event: {event_id} - placed in queue.")
 
     async def capture_event_video(self) -> None:
         async def _get_events() -> AsyncIterator:
@@ -72,11 +71,11 @@ class UnifiProtectEventProcessor:
             (event_id, camera_id) = event.id.split("-")
             event_camera = self._get_event_camera(camera_id)
 
-            logger.info(f"Event: {event_id} - Event complete")
-            logger.info(
+            logger.debug(f"Event: {event_id} - Event complete")
+            logger.debug(
                 f"Event: {event_id} - Consumed by task: {asyncio.current_task().get_name()}"
             )
-            logger.info(f"Event: {event_id} - Event Type: {event.type}")
+            logger.debug(f"Event: {event_id} - Event Type: {event.type}")
             if event.type == EventType.SMART_DETECT:
                 obj_dict = event.unifi_dict_to_dict(event.unifi_dict())
                 # The API returns a list of smart detect types.
@@ -87,22 +86,22 @@ class UnifiProtectEventProcessor:
                     [sdt.value for sdt in obj_dict["smart_detect_types"]]
                 )
 
-                logger.info(
+                logger.debug(
                     f"Event: {event_id} - Smart detect types: {smart_detect_types}"
                 )
 
-            logger.info(f"Event: {event_id} - Camera: {event_camera.name}")
-            logger.info(
+            logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
+            logger.debug(
                 f"Event: {event_id} - Start time (UTC): {event.start.date()} {event.start.time()}"
             )
-            logger.info(
+            logger.debug(
                 f"Event: {event_id} -   End time (UTC): {event.end.date()} {event.end.time()}"
             )
-            logger.info(f"Event: {event_id} - Downloading video...")
+            logger.debug(f"Event: {event_id} - Downloading video...")
 
             event_filename = f"{event_camera.name}-{event_id}-{event.type.value}.mp4"
             output_file = f"{self._download_dir}/{event_filename}"
             await event.get_video(output_file=output_file)
 
             logger.info(f"Event: {event_id} - Video saved to {output_file}")
-            logger.info(f"Event: {event_id} - Event processing complete")
+            logger.debug(f"Event: {event_id} - Event processing complete")

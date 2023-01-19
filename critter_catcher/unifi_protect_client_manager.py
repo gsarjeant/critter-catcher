@@ -102,8 +102,12 @@ class UnifiProtectClientManager(object):
 
     async def shutdown(self):
         # Unsubscribe from the Unifi Protect websocket
+        logger.info("Unsubscribing from websocket")
         self._unsub()
 
         # Close Unifi Protect session
         if self._protect_api_client is not None:
+            logger.info("Closing session")
             await self._protect_api_client.close_session()
+        else:
+            logger.error("Client has been destroyed")
