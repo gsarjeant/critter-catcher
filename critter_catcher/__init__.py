@@ -28,7 +28,7 @@ async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> 
         task.cancel()
 
 
-async def _shutdown(protect: ProtectApiClient, unsub: Callable[[], None]):
+async def _stop(protect: ProtectApiClient, unsub: Callable[[], None]) -> None:
     # Unsubscribe from the Unifi Protect websocket
     logger.info("Unsubscribing from websocket")
     unsub()
@@ -38,10 +38,10 @@ async def _shutdown(protect: ProtectApiClient, unsub: Callable[[], None]):
         logger.info("Closing session")
         await protect.close_session()
     else:
-        logger.error("Client has been destroyed")
+        logger.warning("Client was destroyed before closing session.")
 
 
-async def main() -> None:
+async def _start() -> None:
     host = os.environ["UDMP_HOST"]
     port = os.environ["UDMP_PORT"]
     username = os.environ["UDMP_USERNAME"]
@@ -84,9 +84,15 @@ async def main() -> None:
                 lambda s=s: tg.create_task(_cancel_tasks(s, tasks)),
             )
 
+    # Once all tasks in the task group are cancelled (generally on receipt of a handled signal),
+    # the task group will exit. At that point, clean things up and end the process.
     logger.info("All managed tasks cancelled. Shutting down.")
-    await _shutdown(protect, unsub)
+    await _stop(protect, unsub)
+
+
+def main() -> None:
+    asyncio.run(_start())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

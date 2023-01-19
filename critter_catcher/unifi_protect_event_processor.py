@@ -5,7 +5,7 @@ from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
-from typing import Callable, List
+from typing import Callable, Awaitable, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,9 @@ class EventCamera:
     ignore: bool
 
 
-def _make_camera_list(protect: ProtectApiClient, ignore_camera_names: List[str]):
+def _make_camera_list(
+    protect: ProtectApiClient, ignore_camera_names: List[str]
+) -> List[EventCamera]:
     return [
         EventCamera(
             id=camera.id, name=camera.name, ignore=(camera.name in ignore_camera_names)
@@ -28,7 +30,7 @@ def _make_camera_list(protect: ProtectApiClient, ignore_camera_names: List[str])
 
 def get_event_callback_and_processor(
     protect: ProtectApiClient, ignore_camera_names: List[str], download_dir: str
-):
+) -> Tuple[Callable[[], None], Awaitable]:
     event_queue = asyncio.Queue()
     cameras = _make_camera_list(protect, ignore_camera_names)
     logger.debug(f"cameras: {str([c for c in cameras])}")
@@ -107,7 +109,7 @@ def get_event_callback_and_processor(
 
 async def monitor_websocket_connection(
     protect: ProtectApiClient, unsub: Callable[[], None], callback: Callable[[], None]
-):
+) -> None:
     while True:
         await asyncio.sleep(60)
 
