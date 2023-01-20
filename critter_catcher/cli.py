@@ -1,5 +1,6 @@
+import asyncio
 import click
-import critter_catcher
+from critter_catcher.manager import Config, start
 
 
 @click.command()
@@ -46,12 +47,14 @@ import critter_catcher
     help="A list of cameras that will be excluded from event capture. The names match the names in the Unifi Protect application.",
 )
 def cli(username, password, host, port, verify_ssl, download_dir, ignore_camera_names):
-    critter_catcher.main(
-        username,
-        password,
-        host,
-        port,
-        verify_ssl,
-        download_dir,
-        ignore_camera_names,
+    """Monitors a Unifi Controller for events from Unifi Protect and saves the event video to a local directory."""
+    config = Config(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        verify_ssl=verify_ssl,
+        download_dir=download_dir,
+        ignore_camera_names=ignore_camera_names,
     )
+    asyncio.run(start(config))
