@@ -1,5 +1,7 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 import logging
+import pytz
 from dataclasses import dataclass
 from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
@@ -88,13 +90,34 @@ def get_event_callback_and_processor(
                     f"Event: {event_id} - Smart detect types: {smart_detect_types}"
                 )
 
+            event.start = event.start.replace(tzinfo=pytz.utc).astimezone(
+                protect.bootstrap.nvr.timezone
+            )
+            event.end = event.end.replace(tzinfo=pytz.utc).astimezone(
+                protect.bootstrap.nvr.timezone
+            )
+
             logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
             logger.debug(
-                f"Event: {event_id} - Start time (UTC): {event.start.date()} {event.start.time()}"
+                f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
             )
             logger.debug(
-                f"Event: {event_id} -   End time (UTC): {event.end.date()} {event.end.time()}"
+                f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
             )
+
+            time_since_event_ended = (
+                datetime.utcnow().replace(tzinfo=timezone.utc) - event.end
+            )
+            sleep_time = (
+                timedelta(seconds=5 * 1.5) - time_since_event_ended
+            ).total_seconds()
+
+            if sleep_time > 0:
+                logger.info(
+                    f"  Sleeping ({sleep_time}s) to ensure clip is ready to download..."
+                )
+                await asyncio.sleep(sleep_time)
+
             logger.debug(f"Event: {event_id} - Downloading video...")
 
             event_filename = f"{event_camera.name}-{event_id}-{event.type.value}.mp4"

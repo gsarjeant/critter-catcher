@@ -2,6 +2,7 @@
 # See https://pythonspeed.com/articles/alpine-docker-python/
 FROM python:3.11.1-slim as base
 
+ENV TZ="America/New_York"
 ENV PYTHONDONTWRITEBYTECODE 1 \
     PYTHONFAULTHANDLER 1 \
     PYTHONBUFFERED 1 
@@ -12,9 +13,13 @@ ENV PYTHONDONTWRITEBYTECODE 1 \
 #       means people don't have to remember to do that.
 #
 # Good overview of tini here: https://github.com/krallin/tini/issues/8#issuecomment-146135930
-RUN apt update && apt install tini
-RUN addgroup --system --gid 1001 critter
-RUN adduser --system --uid 1001 critter
+RUN apt-get update && \
+    apt-get install -yq --no-install-recommends \
+    tini && \
+    apt-get clean && \
+    rm -rf /var/apt/lists/*
+RUN addgroup --system --gid 1001 critter && \
+    adduser --system --uid 1001 critter
 
 WORKDIR /app
 
