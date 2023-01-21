@@ -36,7 +36,7 @@ from critter_catcher.manager import Config, start
 )
 @click.option(
     "--download-dir",
-    required=True,
+    default="/data",
     envvar="CC_DOWNLOAD_DIR",
     help="Directory in which to save video from captured events.",
 )
