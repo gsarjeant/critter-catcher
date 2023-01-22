@@ -1,5 +1,6 @@
 import asyncio
 import click
+import logging
 from critter_catcher.manager import Config, start
 
 
@@ -46,7 +47,25 @@ from critter_catcher.manager import Config, start
     envvar="CC_IGNORE_CAMERA_NAMES",
     help="A list of cameras that will be excluded from event capture. The names match the names in the Unifi Protect application.",
 )
-def cli(username, password, host, port, verify_ssl, download_dir, ignore_camera_names):
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    envvar="CC_VERBOSE",
+    help="Increase logging verbosity (show debug messages).",
+)
+def cli(
+    username,
+    password,
+    host,
+    port,
+    verify_ssl,
+    download_dir,
+    ignore_camera_names,
+    verbose,
+):
     """Monitors a Unifi Controller for events from Unifi Protect and saves the event video to a local directory."""
     config = Config(
         host=host,

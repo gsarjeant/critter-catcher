@@ -122,7 +122,13 @@ def get_event_callback_and_processor(
 
             event_filename = f"{event_camera.name}-{event_id}-{event.type.value}.mp4"
             output_file = f"{download_dir}/{event_filename}"
-            await event.get_video(output_file=output_file)
+
+            async def callback(step: int, current: int, total: int) -> None:
+                logger.debug(
+                    f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
+                )
+
+            await event.get_video(output_file=output_file, progress_callback=callback)
 
             logger.info(f"Event: {event_id} - Video saved to {output_file}")
             logger.info(f"Event: {event_id} - Processed.")
