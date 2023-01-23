@@ -20,6 +20,7 @@ class Config:
     verify_ssl: bool
     download_dir: str
     ignore_camera_names: str
+    verbose: bool
 
 
 async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> None:

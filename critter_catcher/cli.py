@@ -66,6 +66,8 @@ def cli(
     ignore_camera_names,
     verbose,
 ):
+    logging.getLogger().setLevel(logging.INFO if not verbose else logging.DEBUG)
+
     """Monitors a Unifi Controller for events from Unifi Protect and saves the event video to a local directory."""
     config = Config(
         host=host,
@@ -75,5 +77,6 @@ def cli(
         verify_ssl=verify_ssl,
         download_dir=download_dir,
         ignore_camera_names=ignore_camera_names,
+        verbose=verbose,
     )
     asyncio.run(start(config))
