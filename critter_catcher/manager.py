@@ -6,11 +6,17 @@ from pyunifiprotect import ProtectApiClient
 from typing import Callable
 from pyunifiprotect import ProtectApiClient
 from typing import Callable, List
-from critter_catcher.event_processor import get_event_callback_and_processor
+from critter_catcher.event_processor import (
+    get_callback_and_iterator,
+    process,
+    EventCamera,
+)
+
 
 logger = logging.getLogger(__name__)
 
 
+# Move cameras definition here and just store the list of cameras in the config instead of the list of names
 @dataclass
 class Config:
     host: str
@@ -21,6 +27,17 @@ class Config:
     download_dir: str
     ignore_camera_names: str
     verbose: bool
+
+
+def _make_camera_list(
+    protect: ProtectApiClient, ignore_camera_names: List[str]
+) -> List[EventCamera]:
+    return [
+        EventCamera(
+            id=camera.id, name=camera.name, ignore=(camera.name in ignore_camera_names)
+        )
+        for camera in protect.bootstrap.cameras.values()
+    ]
 
 
 async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> None:
@@ -62,21 +79,23 @@ async def start(config: Config) -> None:
         verify_ssl=config.verify_ssl,
     )
     await protect.update()
+    config.protect = protect
 
+    cameras = _make_camera_list(protect, ignore_camera_names)
     # subscribe to the Unifi Protect websocket, and call the event processor when messages are received.
-    enqueue_event, process_events = get_event_callback_and_processor(
-        protect, ignore_camera_names, config.download_dir
-    )
-    unsub = protect.subscribe_websocket(enqueue_event)
+    event_callback, events = get_callback_and_iterator(cameras)
+    unsub = protect.subscribe_websocket(event_callback)
 
     # start async tasks and run until all tasks end (in this case, are cancelled)
     # asyncio.TaskGroup requires python 3.11+
     async with asyncio.TaskGroup() as tg:
         tasks = []
         tasks.append(
-            tg.create_task(monitor_websocket_connection(protect, unsub, enqueue_event))
+            tg.create_task(monitor_websocket_connection(protect, unsub, event_callback))
         )
-        tasks.append(tg.create_task(process_events()))
+        tasks.append(
+            tg.create_task(process(events, protect, cameras, config.download_dir))
+        )
 
         # Set up signal handlers
         # NOTE: I'm explicitly cancelling only those tasks that I added in the task group.

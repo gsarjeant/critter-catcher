@@ -1,13 +1,13 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
 import logging
 import pytz
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
 from pyunifiprotect.data.types import EventType
-from typing import Callable, Awaitable, List, Tuple
+from typing import Callable, AsyncIterator, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -19,22 +19,10 @@ class EventCamera:
     ignore: bool
 
 
-def _make_camera_list(
-    protect: ProtectApiClient, ignore_camera_names: List[str]
-) -> List[EventCamera]:
-    return [
-        EventCamera(
-            id=camera.id, name=camera.name, ignore=(camera.name in ignore_camera_names)
-        )
-        for camera in protect.bootstrap.cameras.values()
-    ]
-
-
-def get_event_callback_and_processor(
-    protect: ProtectApiClient, ignore_camera_names: List[str], download_dir: str
-) -> Tuple[Callable[[], None], Awaitable]:
+def get_callback_and_iterator(
+    cameras: List[EventCamera],
+) -> Tuple[Callable[[], None], AsyncIterator]:
     event_queue = asyncio.Queue()
-    cameras = _make_camera_list(protect, ignore_camera_names)
     logger.debug(f"cameras: {str([c for c in cameras])}")
 
     def enqueue_event(msg: WSSubscriptionMessage) -> None:
@@ -64,76 +52,97 @@ def get_event_callback_and_processor(
             event_queue.put_nowait(obj)
             logger.info(f"Event: {event_id} - enqueued.")
 
-    async def process_events() -> None:
+    async def get_events() -> AsyncIterator:
         while True:
-            event = await event_queue.get()
+            yield await event_queue.get()
 
-            (event_id, camera_id) = event.id.split("-")
-            event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
+    return enqueue_event, get_events()
 
-            logger.debug(f"Event: {event_id} - Event complete")
+
+async def process(
+    events: AsyncIterator,
+    protect: ProtectApiClient,
+    cameras: List[EventCamera],
+    download_dir: str,
+):
+    async for event in events:
+        (event_id, camera_id) = event.id.split("-")
+        event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
+
+        logger.debug(f"Event: {event_id} - Event complete")
+        logger.debug(
+            f"Event: {event_id} - Consumed by task: {asyncio.current_task().get_name()}"
+        )
+        logger.debug(f"Event: {event_id} - Event Type: {event.type}")
+        if event.type == EventType.SMART_DETECT:
+            obj_dict = event.unifi_dict_to_dict(event.unifi_dict())
+            # The API returns a list of smart detect types.
+            # I've only ever seen one item in the list for any single event in practice,
+            # but maybe you can get "Person" and "Package" or something like that.
+            # Concatenate the list for logging purposes.
+            smart_detect_types = ",".join(
+                [sdt.value for sdt in obj_dict["smart_detect_types"]]
+            )
+
             logger.debug(
-                f"Event: {event_id} - Consumed by task: {asyncio.current_task().get_name()}"
-            )
-            logger.debug(f"Event: {event_id} - Event Type: {event.type}")
-            if event.type == EventType.SMART_DETECT:
-                obj_dict = event.unifi_dict_to_dict(event.unifi_dict())
-                # The API returns a list of smart detect types.
-                # I've only ever seen one item in the list for any single event in practice,
-                # but maybe you can get "Person" and "Package" or something like that.
-                # Concatenate the list for logging purposes.
-                smart_detect_types = ",".join(
-                    [sdt.value for sdt in obj_dict["smart_detect_types"]]
-                )
-
-                logger.debug(
-                    f"Event: {event_id} - Smart detect types: {smart_detect_types}"
-                )
-
-            event.start = event.start.replace(tzinfo=pytz.utc).astimezone(
-                protect.bootstrap.nvr.timezone
-            )
-            event.end = event.end.replace(tzinfo=pytz.utc).astimezone(
-                protect.bootstrap.nvr.timezone
+                f"Event: {event_id} - Smart detect types: {smart_detect_types}"
             )
 
-            logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
+        event.start = event.start.replace(tzinfo=pytz.utc).astimezone(
+            protect.bootstrap.nvr.timezone
+        )
+        event.end = event.end.replace(tzinfo=pytz.utc).astimezone(
+            protect.bootstrap.nvr.timezone
+        )
+
+        logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
+        logger.debug(
+            f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
+        )
+        logger.debug(
+            f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
+        )
+
+        time_since_event_ended = (
+            datetime.utcnow().replace(tzinfo=timezone.utc) - event.end
+        )
+        sleep_time = (
+            timedelta(seconds=5 * 1.5) - time_since_event_ended
+        ).total_seconds()
+
+        if sleep_time > 0:
+            logger.info(
+                f"  Sleeping ({sleep_time}s) to ensure clip is ready to download..."
+            )
+            await asyncio.sleep(sleep_time)
+
+        logger.debug(f"Event: {event_id} - Downloading video...")
+
+        event_filename = f"{event_camera.name}-{event.start}-{event.type.value}.mp4"
+        output_file = f"{download_dir}/{event_filename}"
+
+        async def callback(step: int, current: int, total: int) -> None:
             logger.debug(
-                f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
-            )
-            logger.debug(
-                f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
+                f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
             )
 
-            time_since_event_ended = (
-                datetime.utcnow().replace(tzinfo=timezone.utc) - event.end
+        logger.debug("Confirming authentication ...")
+        if not protect.is_authenticated():
+            logger.warning(
+                "Authentication has expired. Reauthenticating before attempting to fetch event video."
             )
-            sleep_time = (
-                timedelta(seconds=5 * 1.5) - time_since_event_ended
-            ).total_seconds()
+            await protect.authenticate()
 
-            if sleep_time > 0:
-                logger.info(
-                    f"  Sleeping ({sleep_time}s) to ensure clip is ready to download..."
-                )
-                await asyncio.sleep(sleep_time)
+            if protect.is_authenticated():
+                logger.info("Session is reuthenticated.")
+            else:
+                logger.error("Unexpected error reauthenticating. Skipping download.")
+                break
 
-            logger.debug(f"Event: {event_id} - Downloading video...")
+        await event.get_video(output_file=output_file, progress_callback=callback)
 
-            event_filename = f"{event_camera.name}-{event_id}-{event.type.value}.mp4"
-            output_file = f"{download_dir}/{event_filename}"
-
-            async def callback(step: int, current: int, total: int) -> None:
-                logger.debug(
-                    f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
-                )
-
-            await event.get_video(output_file=output_file, progress_callback=callback)
-
-            logger.info(f"Event: {event_id} - Video saved to {output_file}")
-            logger.info(f"Event: {event_id} - Processed.")
-
-    return enqueue_event, process_events
+        logger.info(f"Event: {event_id} - Video saved to {output_file}")
+        logger.info(f"Event: {event_id} - Processed.")
 
 
 async def monitor_websocket_connection(
