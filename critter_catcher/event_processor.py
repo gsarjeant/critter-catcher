@@ -118,7 +118,11 @@ async def process(
 
         logger.debug(f"Event: {event_id} - Downloading video...")
 
-        event_filename = f"{event_camera.name}-{event.start}-{event.type.value}.mp4"
+        display_camera_name = event_camera.name.replace(" ", "-")
+        display_datetime = event.start.strftime("%Y%m%d-%H%M%S")
+        event_filename = (
+            f"{display_camera_name}-{display_datetime}-{event.type.value}.mp4"
+        )
         output_file = f"{download_dir}/{event_filename}"
 
         async def callback(step: int, current: int, total: int) -> None:
