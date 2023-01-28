@@ -59,6 +59,21 @@ def get_callback_and_iterator(
     return enqueue_event, get_events()
 
 
+async def _validate_authentication(protect: ProtectApiClient) -> bool:
+    logger.debug("Checking authentication...")
+    if protect.is_authenticated():
+        logger.debug("Session is authenticated")
+    else:
+        logger.warning("Session is no longer authenticated. Reauthenticating...")
+        await protect.authenticate()
+        if protect.is_authenticated():
+            logger.warning("Session is reauthenticated.")
+        else:
+            logger.error("Unexpected error reauthenticating session.")
+
+    return protect.is_authenticated()
+
+
 async def process(
     events: AsyncIterator,
     protect: ProtectApiClient,
@@ -116,7 +131,12 @@ async def process(
             )
             await asyncio.sleep(sleep_time)
 
-        logger.debug(f"Event: {event_id} - Downloading video...")
+        # Make sure we're still authenticated before trying to download the video.
+        if await _validate_authentication(protect):
+            logger.debug(f"Event: {event_id} - Downloading video...")
+        else:
+            logger.error("Unable to authenticate. Skipping event download.")
+            break
 
         display_camera_name = event_camera.name.replace(" ", "-")
         display_datetime = event.start.strftime("%Y%m%d-%H%M%S")
@@ -129,19 +149,6 @@ async def process(
             logger.debug(
                 f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
             )
-
-        logger.debug("Confirming authentication ...")
-        if not protect.is_authenticated():
-            logger.warning(
-                "Authentication has expired. Reauthenticating before attempting to fetch event video."
-            )
-            await protect.authenticate()
-
-            if protect.is_authenticated():
-                logger.info("Session is reuthenticated.")
-            else:
-                logger.error("Unexpected error reauthenticating. Skipping download.")
-                break
 
         await event.get_video(output_file=output_file, progress_callback=callback)
 
