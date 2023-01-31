@@ -97,9 +97,6 @@ async def process(
 
         logger.debug(f"Event: {event_id} - Event ended.")
         logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
-        logger.debug(
-            f"Event: {event_id} - Consumed by task: {asyncio.current_task().get_name()}"
-        )
         logger.debug(f"Event: {event_id} - Event Type: {event.type}")
 
         if event.type == EventType.SMART_DETECT:
