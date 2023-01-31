@@ -59,6 +59,17 @@ def get_callback_and_iterator(
     return enqueue_event, get_events()
 
 
+async def _sleep_if_necessary(event: Event):
+    time_since_event_ended = datetime.utcnow().replace(tzinfo=timezone.utc) - event.end
+    sleep_time = (timedelta(seconds=5 * 1.5) - time_since_event_ended).total_seconds()
+
+    if sleep_time > 0:
+        logger.info(
+            f"  Sleeping ({sleep_time}s) to ensure clip is ready to download..."
+        )
+        await asyncio.sleep(sleep_time)
+
+
 async def _validate_authentication(protect: ProtectApiClient) -> bool:
     logger.debug("Checking authentication...")
     if protect.is_authenticated():
@@ -84,16 +95,16 @@ async def process(
         (event_id, camera_id) = event.id.split("-")
         event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
-        logger.debug(f"Event: {event_id} - Event complete")
+        logger.debug(f"Event: {event_id} - Event ended.")
+        logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
         logger.debug(
             f"Event: {event_id} - Consumed by task: {asyncio.current_task().get_name()}"
         )
         logger.debug(f"Event: {event_id} - Event Type: {event.type}")
+
         if event.type == EventType.SMART_DETECT:
             obj_dict = event.unifi_dict_to_dict(event.unifi_dict())
             # The API returns a list of smart detect types.
-            # I've only ever seen one item in the list for any single event in practice,
-            # but maybe you can get "Person" and "Package" or something like that.
             # Concatenate the list for logging purposes.
             smart_detect_types = ",".join(
                 [sdt.value for sdt in obj_dict["smart_detect_types"]]
@@ -103,6 +114,7 @@ async def process(
                 f"Event: {event_id} - Smart detect types: {smart_detect_types}"
             )
 
+        # Convert event start and end times to match the timezone of the unifi controller
         event.start = event.start.replace(tzinfo=pytz.utc).astimezone(
             protect.bootstrap.nvr.timezone
         )
@@ -110,7 +122,6 @@ async def process(
             protect.bootstrap.nvr.timezone
         )
 
-        logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
         logger.debug(
             f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
         )
@@ -118,20 +129,9 @@ async def process(
             f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
         )
 
-        time_since_event_ended = (
-            datetime.utcnow().replace(tzinfo=timezone.utc) - event.end
-        )
-        sleep_time = (
-            timedelta(seconds=5 * 1.5) - time_since_event_ended
-        ).total_seconds()
-
-        if sleep_time > 0:
-            logger.info(
-                f"  Sleeping ({sleep_time}s) to ensure clip is ready to download..."
-            )
-            await asyncio.sleep(sleep_time)
-
-        # Make sure we're still authenticated before trying to download the video.
+        # Make sure that enough time has passed for the controller to finish storing the event clip,
+        # and that we're still authenticated before trying to download the video.
+        await _sleep_if_necessary(event)
         if await _validate_authentication(protect):
             logger.debug(f"Event: {event_id} - Downloading video...")
         else:
