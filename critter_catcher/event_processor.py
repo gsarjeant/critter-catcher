@@ -1,8 +1,8 @@
 import asyncio
 import logging
 import pytz
+from critter_catcher.dataclasses import Config, EventCamera
 from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass
 from pyunifiprotect import ProtectApiClient
 from pyunifiprotect.data import WSAction, WSSubscriptionMessage
 from pyunifiprotect.data.nvr import Event
@@ -10,13 +10,6 @@ from pyunifiprotect.data.types import EventType
 from typing import Callable, AsyncIterator, List, Tuple
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class EventCamera:
-    id: int
-    name: str
-    ignore: bool
 
 
 def get_callback_and_iterator(
@@ -89,8 +82,12 @@ async def process(
     events: AsyncIterator,
     protect: ProtectApiClient,
     cameras: List[EventCamera],
-    download_dir: str,
+    config: Config,
 ):
+    download_dir = config.download_dir
+    start_time = config.start_time
+    end_time = config.end_time
+
     async for event in events:
         (event_id, camera_id) = event.id.split("-")
         event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
@@ -118,6 +115,14 @@ async def process(
         event.end = event.end.replace(tzinfo=pytz.utc).astimezone(
             protect.bootstrap.nvr.timezone
         )
+
+        # NOTE: This doesn't work if the start and end times span a day,
+        # but I'll mess with that case later because I don't care about it right now.
+        if event.start.time() < start_time or event.start.time() > end_time:
+            logger.debug(
+                f"Event: {event_id} - Skipped. Time outside of capture range ({event.start.time()})"
+            )
+            break
 
         logger.debug(
             f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"

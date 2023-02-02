@@ -1,32 +1,18 @@
 import asyncio
 import logging
 import signal
-from dataclasses import dataclass
 from pyunifiprotect import ProtectApiClient
 from typing import Callable
 from pyunifiprotect import ProtectApiClient
 from typing import Callable, List
+from critter_catcher.dataclasses import Config, EventCamera
 from critter_catcher.event_processor import (
     get_callback_and_iterator,
     process,
-    EventCamera,
 )
 
 
 logger = logging.getLogger(__name__)
-
-
-# Move cameras definition here and just store the list of cameras in the config instead of the list of names
-@dataclass
-class Config:
-    host: str
-    port: int
-    username: str
-    password: str
-    verify_ssl: bool
-    download_dir: str
-    ignore_camera_names: str
-    verbose: bool
 
 
 def _make_camera_list(
@@ -93,9 +79,7 @@ async def start(config: Config) -> None:
         tasks.append(
             tg.create_task(monitor_websocket_connection(protect, unsub, event_callback))
         )
-        tasks.append(
-            tg.create_task(process(events, protect, cameras, config.download_dir))
-        )
+        tasks.append(tg.create_task(process(events, protect, cameras, config)))
 
         # Set up signal handlers
         # NOTE: I'm explicitly cancelling only those tasks that I added in the task group.
