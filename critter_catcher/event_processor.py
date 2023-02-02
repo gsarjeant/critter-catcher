@@ -122,40 +122,39 @@ async def process(
             logger.debug(
                 f"Event: {event_id} - Skipped. Time outside of capture range ({event.start.time()})"
             )
-            break
-
-        logger.debug(
-            f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
-        )
-        logger.debug(
-            f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
-        )
-
-        # Make sure that enough time has passed for the controller to finish storing the event clip,
-        # and that we're still authenticated before trying to download the video.
-        await _sleep_if_necessary(event)
-        if await _validate_authentication(protect):
-            logger.debug(f"Event: {event_id} - Downloading video...")
         else:
-            logger.error("Unable to authenticate. Skipping event download.")
-            break
-
-        display_camera_name = event_camera.name.replace(" ", "-")
-        display_datetime = event.start.strftime("%Y%m%d-%H%M%S")
-        event_filename = (
-            f"{display_camera_name}-{display_datetime}-{event.type.value}.mp4"
-        )
-        output_file = f"{download_dir}/{event_filename}"
-
-        async def callback(step: int, current: int, total: int) -> None:
             logger.debug(
-                f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
+                f"Event: {event_id} - Start time: {event.start.date()} {event.start.time()}"
+            )
+            logger.debug(
+                f"Event: {event_id} -   End time: {event.end.date()} {event.end.time()}"
             )
 
-        await event.get_video(output_file=output_file, progress_callback=callback)
+            # Make sure that enough time has passed for the controller to finish storing the event clip,
+            # and that we're still authenticated before trying to download the video.
+            await _sleep_if_necessary(event)
+            if await _validate_authentication(protect):
+                logger.debug(f"Event: {event_id} - Downloading video...")
+            else:
+                logger.error("Unable to authenticate. Skipping event download.")
+                break
 
-        logger.info(f"Event: {event_id} - Video saved to {output_file}")
-        logger.info(f"Event: {event_id} - Processed.")
+            display_camera_name = event_camera.name.replace(" ", "-")
+            display_datetime = event.start.strftime("%Y%m%d-%H%M%S")
+            event_filename = (
+                f"{display_camera_name}-{display_datetime}-{event.type.value}.mp4"
+            )
+            output_file = f"{download_dir}/{event_filename}"
+
+            async def callback(step: int, current: int, total: int) -> None:
+                logger.debug(
+                    f"Downloading {total} bytes - Current chunk: {step}, total saved: {current}"
+                )
+
+            await event.get_video(output_file=output_file, progress_callback=callback)
+
+            logger.info(f"Event: {event_id} - Video saved to {output_file}")
+            logger.info(f"Event: {event_id} - Processed.")
 
 
 async def monitor_websocket_connection(
