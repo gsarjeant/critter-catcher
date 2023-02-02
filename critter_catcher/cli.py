@@ -59,7 +59,7 @@ from critter_catcher.manager import Config, start
 @click.option(
     "--end-time",
     type=click.DateTime(formats=["%H:%M:%S"]),
-    default="11:59:59",
+    default="23:59:59",
     envvar="CC_END_TIME",
     help="The time each day to end recording. If unset, then recording ends at 11:59:59 PM.",
 )
