@@ -21,29 +21,30 @@ def get_callback_and_iterator(
     def enqueue_event(msg: WSSubscriptionMessage) -> None:
         obj = msg.new_obj
 
-        if isinstance(obj, Event):
-            if obj.type not in [EventType.MOTION, EventType.SMART_DETECT]:
-                logger.debug(f"Unhandled event type: {obj.type}")
-                return
+        if not isinstance(obj, Event):
+            return
 
-            (event_id, camera_id) = obj.id.split("-")
-            event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
+        if obj.type not in [EventType.MOTION, EventType.SMART_DETECT]:
+            logger.debug(f"Unhandled event type: {obj.type}")
+            return
 
-            if event_camera.ignore:
-                logger.debug(f"Event from ignored camera: {event_camera.name}")
-                return
+        (event_id, camera_id) = obj.id.split("-")
+        event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
-            if msg.action == WSAction.ADD:
-                logger.debug(f"Event: {event_id} - Started (type: {obj.type})")
-                logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
-                return
-            if msg.action != WSAction.UPDATE:
-                return
-            if obj.end is None:
-                return
+        if event_camera.ignore:
+            logger.debug(f"Event from ignored camera: {event_camera.name}")
+            return
+        if msg.action == WSAction.ADD:
+            logger.debug(f"Event: {event_id} - Started (type: {obj.type})")
+            logger.debug(f"Event: {event_id} - Camera: {event_camera.name}")
+            return
+        if msg.action != WSAction.UPDATE:
+            return
+        if obj.end is None:
+            return
 
-            event_queue.put_nowait(obj)
-            logger.info(f"Event: {event_id} - enqueued.")
+        event_queue.put_nowait(obj)
+        logger.info(f"Event: {event_id} - enqueued.")
 
     async def get_events() -> AsyncIterator:
         while True:
@@ -67,16 +68,17 @@ async def _validate_authentication(protect: ProtectApiClient) -> bool:
     logger.debug("Checking authentication...")
     if protect.is_authenticated():
         logger.debug("Session is authenticated")
-    else:
-        logger.warning("Session is no longer authenticated. Reauthenticating...")
-        await protect.authenticate()
+        return True
 
-        if protect.is_authenticated():
-            logger.warning("Session is reauthenticated.")
-        else:
-            logger.error("Unexpected error reauthenticating session.")
+    logger.warning("Session is no longer authenticated. Reauthenticating...")
+    await protect.authenticate()
 
-    return protect.is_authenticated()
+    if not protect.is_authenticated():
+        logger.error("Unexpected error reauthenticating session.")
+        return False
+
+    logger.warning("Session is reauthenticated.")
+    return True
 
 
 # Events should be captured only if they start after the specified start time
