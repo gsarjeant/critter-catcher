@@ -52,14 +52,14 @@ from critter_catcher.manager import Config, start
 @click.option(
     "--start-time",
     type=click.DateTime(formats=["%H:%M:%S"]),
-    default="00:00:00",
+    default=None,
     envvar="CC_START_TIME",
     help="The time each day to start recording. If unset, then recording starts at midnight.",
 )
 @click.option(
     "--end-time",
     type=click.DateTime(formats=["%H:%M:%S"]),
-    default="23:59:59",
+    default=None,
     envvar="CC_END_TIME",
     help="The time each day to end recording. If unset, then recording ends at 11:59:59 PM.",
 )
@@ -86,8 +86,6 @@ def cli(
 ):
     logging.getLogger().setLevel(logging.INFO if not verbose else logging.DEBUG)
 
-    logging.info(f"Start time: {start_time.time()}")
-    logging.info(f"End time: {end_time.time()}")
     """Monitors a Unifi Controller for events from Unifi Protect and saves the event video to a local directory."""
     config = Config(
         host=host,
@@ -97,8 +95,8 @@ def cli(
         verify_ssl=verify_ssl,
         download_dir=download_dir,
         ignore_camera_names=ignore_camera_names,
-        start_time=start_time.time(),
-        end_time=end_time.time(),
+        start_time=start_time.time() if start_time else start_time,
+        end_time=end_time.time() if end_time else end_time,
         verbose=verbose,
     )
     asyncio.run(start(config))
