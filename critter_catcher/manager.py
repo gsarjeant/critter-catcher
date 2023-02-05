@@ -107,7 +107,7 @@ async def monitor_websocket_connection(
         logger.debug("Checking connection to websocket")
         if protect.check_ws():
             logger.debug("Connected to Unifi Protect")
-            return
+            continue
 
         logger.warning("Lost connection to Unifi Protect. Cleaning up connection.")
 
