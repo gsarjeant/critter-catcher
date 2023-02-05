@@ -84,7 +84,7 @@ async def _validate_authentication(protect: ProtectApiClient) -> bool:
 # Events should be captured only if they start after the specified start time
 # and before the specified end time.
 # If either is unset, then it is ignored.
-def _should_capture_event(event: Event, config: Config) -> bool:
+def _event_time_is_in_capture_window(event: Event, config: Config) -> bool:
     after_start_time = not config.start_time or event.start.time() >= config.start_time
     before_end_time = not config.end_time or event.start.time() <= config.end_time
 
@@ -136,7 +136,7 @@ async def process(
         )
 
         # Determine whether the event time is in the capture window.
-        if not _should_capture_event(event, config):
+        if not _event_time_is_in_capture_window(event, config):
             logger.debug(
                 f"Event: {event_id} is outside of capture window ({event.start.time()}). Skipping capture."
             )
