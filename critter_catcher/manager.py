@@ -36,21 +36,20 @@ async def _cancel_tasks(signal: signal, tasks_to_cancel: List[asyncio.Task]) -> 
 
 
 async def _stop(protect: ProtectApiClient, unsub: Callable[[], None]) -> None:
+    if protect is None:
+        logger.warning("Client was destroyed before closing session.")
+        return
+
     # Unsubscribe from the Unifi Protect websocket
     logger.info("Unsubscribing from websocket")
     unsub()
 
     # Close Unifi Protect session
-    if protect is not None:
-        logger.info("Closing session")
-        await protect.close_session()
-    else:
-        logger.warning("Client was destroyed before closing session.")
+    logger.info("Closing session")
+    await protect.close_session()
 
 
 async def start(config: Config) -> None:
-
-    logger.debug(f"Verify SSL: {config.verify_ssl}")
     # convert the comma-delimited list of ignored camera names to a list
     # (empty list if no cameras are ignored)
     ignore_camera_names = (
@@ -108,30 +107,32 @@ async def monitor_websocket_connection(
         logger.debug("Checking connection to websocket")
         if protect.check_ws():
             logger.debug("Connected to Unifi Protect")
-        else:
-            logger.warning("Lost connection to Unifi Protect. Cleaning up connection.")
+            return
 
-            unsub()
-            await protect.close_session()
+        logger.warning("Lost connection to Unifi Protect. Cleaning up connection.")
 
-            while True:
-                logger.warning("Attempting to reconnect to Unifi Protect.")
+        unsub()
+        await protect.close_session()
 
-                try:
-                    logger.warning("Reinitializing protect client")
-                    await protect.update(force=True)
-                    if protect.check_ws():
-                        logger.warning("Resubscribing to websocket")
-                        unsub = protect.subscribe_websocket(callback)
-                        break
-                    else:
-                        logger.warning("Unable to reconnect to Unifi Protect.")
-                except Exception as e:
-                    logger.warning(
-                        "Unexpected exception trying to reconnnect to Unifi Protect"
-                    )
-                    logger.exception(e)
+        while True:
+            logger.warning("Attempting to reconnect to Unifi Protect.")
 
-                await asyncio.sleep(10)
+            try:
+                logger.warning("Reinitializing protect client")
+                await protect.update(force=True)
 
-            logger.warning("Reconnected to Unifi Protect.")
+                if protect.check_ws():
+                    logger.warning("Resubscribing to websocket")
+                    unsub = protect.subscribe_websocket(callback)
+                    break
+
+                logger.warning("Unable to reconnect to Unifi Protect. Retrying in 10s")
+            except Exception as e:
+                logger.warning(
+                    "Unexpected exception trying to reconnnect to Unifi Protect"
+                )
+                logger.exception(e)
+
+            await asyncio.sleep(10)
+
+        logger.warning("Reconnected to Unifi Protect.")
