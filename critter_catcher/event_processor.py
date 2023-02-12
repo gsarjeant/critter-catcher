@@ -142,7 +142,7 @@ async def process(
             )
             continue
 
-        logger.debug(f"Event: {event_id} - ended. Processing...")
+        logger.debug(f"Event: {event_id} - In capture window. Processing...")
         logger.debug(f"Event: {event_id} - Event Type: {event.type}")
 
         if event.type == EventType.SMART_DETECT:
