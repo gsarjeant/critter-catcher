@@ -28,7 +28,10 @@ def get_callback_and_iterator(
             logger.debug(f"Unhandled event type: {obj.type}")
             return
 
-        (event_id, camera_id) = obj.id.split("-")
+        logger.debug(f"Event ID: {obj.id}")
+        logger.debug(f"Event dict: {obj.unifi_dict_to_dict(obj.unifi_dict())}")
+        event_id = obj.id
+        camera_id = obj.camera_id
         event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
         if event_camera.ignore:
@@ -124,7 +127,12 @@ async def process(
     download_dir = config.download_dir
 
     async for event in events:
-        (event_id, camera_id) = event.id.split("-")
+        logger.debug(
+            f"Event ID: {event.id}"
+        )
+
+        event_id = event.id
+        camera_id = event.camera_id
         event_camera = next(filter(lambda ec: ec.id == camera_id, cameras))
 
         # Convert event start and end times to match the timezone of the unifi controller
